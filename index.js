@@ -1,3 +1,4 @@
+const ciudades = require("./ciudades");
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
@@ -102,12 +103,21 @@ HEALTH CHECK
 ====================================
 */
 
-app.get("/", (req, res) => {
+app.get("/ciudades", (req, res) => {
 
-  res.json({
-    ok: true,
-    mensaje: "API Bella Lua funcionando"
-  });
+  const q =
+    (req.query.q || "")
+    .toLowerCase();
+
+  const resultados =
+    ciudades.filter(c =>
+      c.label
+        .toLowerCase()
+        .includes(q)
+    )
+    .slice(0, 20);
+
+  res.json(resultados);
 
 });
 
