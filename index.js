@@ -103,6 +103,15 @@ HEALTH CHECK
 ====================================
 */
 
+app.get("/", (req, res) => {
+
+  res.json({
+    ok: true,
+    mensaje: "API Bella Lua funcionando"
+  });
+
+});
+
 app.get("/ciudades", (req, res) => {
 
   const q =
