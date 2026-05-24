@@ -7,31 +7,125 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-let token = "";
+/*
+====================================
+CONFIG
+====================================
+*/
 
-// LOGIN 99 ENVIOS
+const EMAIL = "yosephparra27@gmail.com";
+const PASSWORD = "Familia2711.";
+
+const LOGIN_URL =
+  "https://integration1.99envios.app/api/integration/v1/login";
+
+const COTIZAR_URL =
+  "https://integration1.99envios.app/api/integration/v1/cotizar";
+
+/*
+====================================
+TOKEN CACHE
+====================================
+*/
+
+let token = null;
+let tokenTime = null;
+
+/*
+====================================
+GENERAR TOKEN
+====================================
+*/
+
 async function login99() {
+
   try {
+
+    console.log("Generando token...");
+
     const response = await axios.post(
-      "https://integration1.99envios.app/api/integration/v1/login",
+      LOGIN_URL,
       {
-        email: "yosephparra27@gmail.com",
-        password: "Familia2711."
+        email: EMAIL,
+        password: PASSWORD
       }
     );
 
     token = response.data.token;
+    tokenTime = Date.now();
 
-    console.log("Token generado");
+    console.log("Token generado correctamente");
+
+    return token;
+
   } catch (error) {
-    console.log(error.response?.data || error.message);
+
+    console.log(
+      "ERROR LOGIN:",
+      error.response?.data || error.message
+    );
+
+    return null;
   }
 }
 
-// COTIZAR
+/*
+====================================
+OBTENER TOKEN
+====================================
+*/
+
+async function getToken() {
+
+  // si no existe token
+  if (!token) {
+    return await login99();
+  }
+
+  // renovar cada 12 horas
+  const horas =
+    (Date.now() - tokenTime) / 1000 / 60 / 60;
+
+  if (horas >= 12) {
+
+    console.log("Renovando token...");
+
+    return await login99();
+  }
+
+  return token;
+}
+
+/*
+====================================
+HEALTH CHECK
+====================================
+*/
+
+app.get("/", (req, res) => {
+
+  res.json({
+    ok: true,
+    mensaje: "API Bella Lua funcionando"
+  });
+
+});
+
+/*
+====================================
+COTIZAR
+====================================
+*/
+
 app.post("/cotizar", async (req, res) => {
 
   try {
+
+    /*
+    ==========================
+    DATOS FRONTEND
+    ==========================
+    */
 
     const {
       ciudad,
@@ -43,62 +137,147 @@ app.post("/cotizar", async (req, res) => {
       contra
     } = req.body;
 
-    const response = await axios.post(
-      "https://api.99envios.com/api/integration/v1/cotizar",
-      {
-        destino: {
-          nombre: "Destino",
-          codigo: ciudad
-        },
-        origen: {
-          nombre: "Bogotá",
-          codigo: "11001000"
-        },
-        IdTipoEntrega: 1,
-        IdServicio: 1,
-        valorDeclarado: valor,
-        peso: peso,
-        alto: alto,
-        largo: largo,
-        ancho: ancho,
-        fecha: "23-05-2026",
-        seguro99: false,
-        seguro99plus: false,
-        AplicaContrapago: contra
+    /*
+    ==========================
+    VALIDACIONES
+    ==========================
+    */
+
+    if (!ciudad) {
+      return res.status(400).json({
+        error: "Ciudad requerida"
+      });
+    }
+
+    /*
+    ==========================
+    TOKEN
+    ==========================
+    */
+
+    const currentToken =
+      await getToken();
+
+    if (!currentToken) {
+      return res.status(500).json({
+        error: "No se pudo generar token"
+      });
+    }
+
+    /*
+    ==========================
+    FECHA
+    ==========================
+    */
+
+    const hoy = new Date();
+
+    const fecha =
+      String(hoy.getDate()).padStart(2, "0")
+      + "-"
+      + String(hoy.getMonth() + 1).padStart(2, "0")
+      + "-"
+      + hoy.getFullYear();
+
+    /*
+    ==========================
+    PAYLOAD 99 ENVIOS
+    ==========================
+    */
+
+    const payload = {
+
+      destino: {
+        nombre: "Destino",
+        codigo: ciudad
       },
+
+      origen: {
+        nombre: "Bogotá",
+        codigo: "11001000"
+      },
+
+      IdTipoEntrega: 1,
+
+      IdServicio: 1,
+
+      valorDeclarado: Number(valor),
+
+      peso: Number(peso),
+
+      alto: Number(alto),
+
+      largo: Number(largo),
+
+      ancho: Number(ancho),
+
+      fecha: fecha,
+
+      seguro99: false,
+
+      seguro99plus: false,
+
+      AplicaContrapago: contra
+    };
+
+    console.log("Payload enviado:");
+    console.log(payload);
+
+    /*
+    ==========================
+    COTIZAR
+    ==========================
+    */
+
+    const response = await axios.post(
+      COTIZAR_URL,
+      payload,
       {
         headers: {
-          Authorization: `Bearer ${token}`
+          Authorization:
+            `Bearer ${currentToken}`
         }
       }
     );
 
-    // escogemos la más barata automáticamente
-    const precios = response.data;
+    /*
+    ==========================
+    RESPUESTA
+    ==========================
+    */
 
-    let menor = 999999;
-
-    for (let key in precios) {
-      if (precios[key].valor && precios[key].valor < menor) {
-        menor = precios[key].valor;
-      }
-    }
+    console.log("Cotización exitosa");
 
     res.json(response.data);
 
-  } catch (err) {
-    console.log(err.response?.data || err.message);
+  } catch (error) {
+
+    console.log(
+      "ERROR COTIZAR:"
+    );
+
+    console.log(
+      error.response?.data || error.message
+    );
 
     res.status(500).json({
-      error: "Error cotizando"
+
+      error: true,
+
+      mensaje:
+        error.response?.data ||
+        error.message
+
     });
 
   }
+
 });
 
-// INICIAR SERVIDOR
-app.listen(3000, async () => {
-  console.log("Servidor iniciado");
+/*
+====================================
+VERCEL
+====================================
+*/
 
-  await login99();
-});
+module.exports = app;
