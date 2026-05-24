@@ -232,9 +232,9 @@ app.post("/cotizar", async (req, res) => {
 
       fecha: fecha,
 
-      seguro99: true,
+      seguro99: false,
 
-      seguro99plus: false,
+      seguro99plus: true,
 
       AplicaContrapago: contra
     };
