@@ -30,14 +30,24 @@ async function login99() {
 
 // COTIZAR
 app.post("/cotizar", async (req, res) => {
+
   try {
-    const { ciudad, precio, peso } = req.body;
+
+    const {
+      ciudad,
+      valor,
+      peso,
+      alto,
+      largo,
+      ancho,
+      contra
+    } = req.body;
 
     const response = await axios.post(
-      "https://TUAPI.com/api/integration/v1/cotizar",
+      "https://api.99envios.com/api/integration/v1/cotizar",
       {
         destino: {
-          nombre: ciudad,
+          nombre: "Destino",
           codigo: ciudad
         },
         origen: {
@@ -46,15 +56,15 @@ app.post("/cotizar", async (req, res) => {
         },
         IdTipoEntrega: 1,
         IdServicio: 1,
-        valorDeclarado: precio,
+        valorDeclarado: valor,
         peso: peso,
-        alto: 10,
-        largo: 10,
-        ancho: 10,
-        fecha: "22-05-2026",
+        alto: alto,
+        largo: largo,
+        ancho: ancho,
+        fecha: "23-05-2026",
         seguro99: false,
         seguro99plus: false,
-        AplicaContrapago: true
+        AplicaContrapago: contra
       },
       {
         headers: {
@@ -63,14 +73,26 @@ app.post("/cotizar", async (req, res) => {
       }
     );
 
+    // escogemos la más barata automáticamente
+    const precios = response.data;
+
+    let menor = 999999;
+
+    for (let key in precios) {
+      if (precios[key].valor && precios[key].valor < menor) {
+        menor = precios[key].valor;
+      }
+    }
+
     res.json(response.data);
 
-  } catch (error) {
-    console.log(error.response?.data || error.message);
+  } catch (err) {
+    console.log(err.response?.data || err.message);
 
     res.status(500).json({
-      error: "Error al cotizar"
+      error: "Error cotizando"
     });
+
   }
 });
 
